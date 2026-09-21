@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Full-screen player: visual review</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font: 15px/1.5 system-ui, sans-serif;
+    background: light-dark(#141517, #f2f1ee); color: light-dark(#e8e8e8, #1c1b1a);
+  }
+  header { padding: 20px 24px 0; max-width: 1280px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .meta { font-size: 13px; opacity: .75; margin: 0 0 16px; }
+  nav {
+    max-width: 1280px; margin: 0 auto; padding: 0 24px 12px;
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  }
+  nav select { font: inherit; padding: 6px 10px; border-radius: 8px; flex: 1; min-width: 260px; }
+  button {
+    font: inherit; padding: 6px 14px; border-radius: 8px; cursor: pointer;
+    border: 1px solid light-dark(#444, #bbb); background: transparent; color: inherit;
+  }
+  button[aria-pressed="true"] { background: light-dark(#e8e8e8, #1c1b1a); color: light-dark(#141517, #f2f1ee); }
+  button:disabled { opacity: .35; cursor: default; }
+  main { max-width: 1280px; margin: 0 auto; padding: 0 24px 48px; }
+  .explain { font-size: 14px; margin: 12px 0 16px; max-width: 900px; }
+  .stage { position: relative; }
+  .pane img { width: 100%; height: auto; display: none; border-radius: 10px; }
+  .pane img.shown { display: block; }
+  .pane { position: relative; }
+  .tag {
+    position: absolute; top: 10px; left: 10px; font-size: 12px; font-weight: 600;
+    padding: 2px 10px; border-radius: 999px; background: rgba(0,0,0,.65); color: #fff;
+  }
+  .absent {
+    display: none; border: 2px dashed light-dark(#555, #999); border-radius: 10px;
+    padding: 48px 24px; text-align: center; opacity: .7;
+  }
+  .absent.shown { display: block; }
+  .controls { display: flex; gap: 8px; margin: 12px 0 4px; flex-wrap: wrap; align-items: center; }
+  .checks { font-size: 13px; opacity: .8; }
+  footer { max-width: 1280px; margin: 0 auto; padding: 0 24px 48px; font-size: 13px; opacity: .8; }
+  a { color: inherit; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Full-screen player</h1>
+  <p class="meta">
+    Baseline: <code>main</code> @ <code>5b8c1a4</code> (old full-screen lyrics).
+    Candidate: the unified full-screen player (this working tree).
+    Captures produced on Windows 11, demo mode, native full screen,
+    2560x1440 physical (1600x900 logical), default demo data. After captures
+    rest for 8 s so the controls dissolve, except the surfaced-controls entry;
+    the old view had no time-dependent chrome, so its earlier capture is
+    equivalent.
+  </p>
+</header>
+<nav>
+  <button id="prev" title="Previous entry">&#8592; Previous</button>
+  <select id="entry"></select>
+  <button id="next" title="Next entry">Next &#8594;</button>
+</nav>
+<main>
+  <p class="explain" id="explain"></p>
+  <div class="controls">
+    <span style="font-size:13px;opacity:.7">State:</span>
+    <button id="mode-before">Before</button>
+    <button id="mode-after">After</button>
+    <span style="font-size:13px;opacity:.7">Theme:</span>
+    <button id="theme-dark">Dark</button>
+    <button id="theme-light">Light</button>
+    <span class="checks" id="hint"></span>
+  </div>
+  <div class="stage">
+    <div class="pane" id="beforePane">
+      <span class="tag">Before</span>
+      <img id="beforeDark" class="shot">
+      <img id="beforeLight" class="shot">
+    </div>
+    <div class="absent" id="beforeAbsent">No equivalent view existed before: this state is new.</div>
+    <div class="pane" id="afterPane">
+      <span class="tag">After</span>
+      <img id="afterDark" class="shot">
+      <img id="afterLight" class="shot">
+    </div>
+  </div>
+</main>
+<footer>
+  <p><strong>Remaining checks</strong> (run separately, not part of this visual review):
+  clippy and the test suite in both feature variants minus MilkDrop (vcpkg/CMake
+  unavailable locally), <code>cargo doc</code>, launcher tests, translations
+  (GNU gettext unavailable locally), and the Jekyll docs build (Ruby unavailable
+  locally).</p>
+  <p>Direct links:
+  <a href="#0" id="link0">0</a>
+  <a href="#1">1</a>
+  <a href="#2">2</a>
+  <a href="#3">3</a>
+  <a href="#4">4</a>
+  <a href="#5">5</a></p>
+</footer>
+<script>
+const entries = [
+  {
+    name: "Full-screen lyrics (dark)",
+    explain: "The old full-screen lyrics become the lyrics state of the unified player. Layout, line highlight and the header keep their shape; the exit button moved from the header into the control bar, and the backdrop veil follows the theme.",
+    before: { dark: "before/lyrics-fullscreen-dark.png" },
+    after: { dark: "after/fs-swap-dark.png" },
+  },
+  {
+    name: "Full-screen lyrics (light theme)",
+    explain: "The old view forced the dark palette whatever the app theme said, so this before capture is the light theme rendering dark. The new view follows the app theme, so the same lyrics state now has a light form.",
+    before: { light: "before/lyrics-fullscreen-light.png" },
+    after: { light: "after/fs-swap-light.png" },
+    themeDefault: "light",
+  },
+  {
+    name: "Cover at rest (new)",
+    explain: "Entering shows the playing cover with its title and artist over the blurred backdrop. After three seconds of stillness the controls dissolve and the pointer hides; this is the rest state.",
+    before: null,
+    after: { dark: "after/fs-cover-dark.png", light: "after/fs-cover-light.png" },
+  },
+  {
+    name: "Controls surfaced (new)",
+    explain: "A pointer move or key press surfaces the control bar: transport and seek in the middle, volume, Like, the lyrics and queue toggles, and Leave on the right. It dissolves again after three seconds.",
+    before: null,
+    after: { dark: "after/fs-cover-controls-dark.png" },
+    themeDefault: "dark", themeLock: true,
+  },
+  {
+    name: "Split lyrics layout (new, temporary)",
+    explain: "Shift+L switches the lyrics state between two layouts under comparison: words beside the cover (this entry), or in its place (entry 0). The loser is removed before release.",
+    before: null,
+    after: { dark: "after/fs-split-dark.png", light: "after/fs-split-light.png" },
+  },
+  {
+    name: "Queue inside the mode (new)",
+    explain: "The queue opens as its side panel inside the full-screen player, reusing the ordinary queue panel; the control bar stops at its left edge. In the old design the queue panel could not coexist with full screen.",
+    before: null,
+    after: { dark: "after/fs-queue-dark.png" },
+    themeDefault: "dark", themeLock: true,
+  },
+];
+
+const $ = (id) => document.getElementById(id);
+const params = new URLSearchParams(location.hash.slice(1));
+let current = Math.min(Math.max(parseInt(params.get("e") || "0", 10) || 0, 0), entries.length - 1);
+let showingBefore = false;
+let theme = "dark";
+let themePicked = false;
+
+function renderButtons() {
+  const e = entries[current];
+  $("mode-before").disabled = !e.before;
+  $("mode-before").ariaPressed = String(showingBefore && e.before);
+  $("mode-after").ariaPressed = String(!showingBefore || !e.before);
+  const hasDark = !showingBefore ? !!(e.after && e.after.dark) : !!(e.before && e.before.dark);
+  const hasLight = !showingBefore ? !!(e.after && e.after.light) : !!(e.before && e.before.light);
+  $("theme-dark").disabled = !hasDark;
+  $("theme-light").disabled = !hasLight;
+  $("theme-dark").ariaPressed = String(theme === "dark" && hasDark);
+  $("theme-light").ariaPressed = String(theme === "light" && hasLight);
+}
+
+function render() {
+  const e = entries[current];
+  if (!e.before) showingBefore = false;
+  if (e.themeDefault && !themePicked) theme = e.themeDefault;
+  $("entry").value = String(current);
+  $("explain").textContent = e.explain;
+  $("prev").disabled = current === 0;
+  $("next").disabled = current === entries.length - 1;
+
+  // Before side: the old capture when this entry has one and Before is
+  // selected, otherwise a note that the state is new.
+  const beforeImage = showingBefore && e.before && e.before[theme];
+  $("beforePane").style.display = beforeImage ? "block" : "none";
+  $("beforeAbsent").style.display = beforeImage ? "none" : "block";
+  $("beforeAbsent").textContent = e.before
+    ? "No before capture for this theme."
+    : "No equivalent view existed before: this state is new.";
+  for (const t of ["dark", "light"]) {
+    const key = "before" + t[0].toUpperCase() + t.slice(1);
+    $(key).classList.toggle("shown", beforeImage && t === theme);
+    if (beforeImage && t === theme) $(key).src = e.before[t];
+  }
+
+  // After side: the candidate capture for the theme.
+  $("afterPane").style.display = "block";
+  for (const t of ["dark", "light"]) {
+    const key = "after" + t[0].toUpperCase() + t.slice(1);
+    const shown = !showingBefore && !!(e.after && e.after[t]);
+    $(key).classList.toggle("shown", shown && t === theme);
+    if (shown && t === theme) $(key).src = e.after[t];
+  }
+
+  renderButtons();
+  history.replaceState(null, "", "#e=" + current + "&t=" + theme + (showingBefore ? "&b=1" : ""));
+}
+
+$("prev").onclick = () => { current--; render(); };
+$("next").onclick = () => { current++; render(); };
+$("entry").onchange = (ev) => { current = parseInt(ev.target.value, 10); render(); };
+$("mode-before").onclick = () => { showingBefore = true; render(); };
+$("mode-after").onclick = () => { showingBefore = false; render(); };
+$("theme-dark").onclick = () => { theme = "dark"; themePicked = true; render(); };
+$("theme-light").onclick = () => { theme = "light"; themePicked = true; render(); };
+window.onhashchange = () => {
+  const p = new URLSearchParams(location.hash.slice(1));
+  current = Math.min(Math.max(parseInt(p.get("e") || "0", 10) || 0, 0), entries.length - 1);
+  theme = p.get("t") === "light" ? "light" : "dark";
+  showingBefore = p.get("b") === "1";
+  render();
+};
+if (params.get("t")) {
+  theme = params.get("t") === "light" ? "light" : "dark";
+  themePicked = true;
+}
+if (params.get("b") === "1") showingBefore = true;
+render();
+</script>
+</body>
+</html>
