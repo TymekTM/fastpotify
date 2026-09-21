@@ -597,6 +597,18 @@ fn sample_lyrics() -> crate::lyrics::Lyrics {
     }
 }
 
+/// Loads the sample words and enters the full-screen player on them, the
+/// way the lyrics panel's expand button does.
+#[cfg(feature = "demo")]
+fn fullscreen_lyrics_fixture(app: &mut App) {
+    app.lyrics_uri = app.now_playing().map(|now| now.uri);
+    app.lyrics = Loadable::Loaded(Some(sample_lyrics()));
+    app.lyrics_following = true;
+    app.show_lyrics_panel = true;
+    app.actions.push(Action::SetPlayerFullscreen(true));
+    app.actions.push(Action::ToggleFullscreenLyrics);
+}
+
 /// Applies `--demo-page` and `--demo-show`.
 #[cfg(feature = "demo")]
 pub fn apply_flags(app: &mut App, page: Option<&str>, show: Option<&str>) {
@@ -826,13 +838,30 @@ pub fn apply_flags(app: &mut App, page: Option<&str>, show: Option<&str>) {
                     },
                 );
             }
-            "lyrics" | "lyrics-fullscreen" => {
+            "lyrics" => {
                 app.lyrics_uri = app.now_playing().map(|now| now.uri);
                 app.lyrics = Loadable::Loaded(Some(sample_lyrics()));
                 app.lyrics_following = true;
                 app.show_lyrics_panel = true;
-                if surface == "lyrics-fullscreen" {
-                    app.actions.push(Action::SetLyricsFullscreen(true));
+            }
+            // The unified full-screen player: cover only, or with the words.
+            "player-fullscreen" => {
+                app.actions.push(Action::SetPlayerFullscreen(true));
+            }
+            "lyrics-fullscreen"
+            | "player-fullscreen-lyrics"
+            | "player-fullscreen-split"
+            | "player-fullscreen-swap" => {
+                fullscreen_lyrics_fixture(app);
+                if surface == "player-fullscreen-split" || surface == "player-fullscreen-swap" {
+                    // The two lyrics layouts under comparison, for
+                    // like-for-like shots.
+                    app.settings.fullscreen_lyrics_layout = if surface == "player-fullscreen-split"
+                    {
+                        crate::settings::FullscreenLyricsLayout::Split
+                    } else {
+                        crate::settings::FullscreenLyricsLayout::Swap
+                    };
                 }
             }
             // Titles in scripts the interface font does not cover.
@@ -1412,7 +1441,8 @@ mod tests {
                 &mut app,
                 vec![accessible_action(expand, AccessibleAction::Click, None)],
             );
-            assert!(app.lyrics_fullscreen.is_some());
+            assert!(app.player_fullscreen.is_some());
+            assert!(app.fullscreen_lyrics, "the expand button opens the words");
             app.lyrics_following = false;
             let tree = accessible_frame(&ctx, &mut app, vec![]);
             let follow =
@@ -1434,9 +1464,10 @@ mod tests {
                 &mut app,
                 vec![accessible_action(leave, AccessibleAction::Click, None)],
             );
-            assert!(app.lyrics_fullscreen.is_none());
+            assert!(app.player_fullscreen.is_none());
             for fullscreen in [false, true] {
-                app.lyrics_fullscreen = fullscreen.then_some(false);
+                app.player_fullscreen = fullscreen.then_some(false);
+                app.fullscreen_lyrics = fullscreen;
                 app.lyrics = Loadable::Failed("fixture failure".into());
                 let tree = accessible_frame(&ctx, &mut app, vec![]);
                 let retry = accessible_node(&tree, &gettext(locale, "Try again"), Role::Button);
@@ -1448,7 +1479,7 @@ mod tests {
                 // Offline retries finish without contacting a lyrics provider.
                 assert!(matches!(app.lyrics, Loadable::Loaded(None)));
             }
-            app.lyrics_fullscreen = None;
+            app.player_fullscreen = None;
             let tree = accessible_frame(&ctx, &mut app, vec![]);
             let close = accessible_node(&tree, &gettext(locale, "Close"), Role::Button);
             accessible_frame(
@@ -1461,6 +1492,85 @@ mod tests {
         }
     }
 
+    /// The full-screen player's controls come with input and dissolve with
+    /// rest: the leave button is reachable while awake and gone once the
+    /// pointer has been still, until it moves again.
+    #[test]
+    fn fullscreen_controls_surface_with_input_and_rest_without_it() {
+        let (ctx, mut app) = accessible_app("fullscreen-controls");
+        app.actions.push(Action::SetPlayerFullscreen(true));
+        let frame = |app: &mut App, time: f64| {
+            ctx.run_ui(
+                egui::RawInput {
+                    time: Some(time),
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(1280.0, 800.0),
+                    )),
+                    ..Default::default()
+                },
+                |ui| app.frame_ui(ui),
+            )
+        };
+        let mut output = frame(&mut app, 0.0);
+        output.textures_delta.clear();
+        assert!(app.player_fullscreen.is_some());
+        let mut clock = 0.0f64;
+        let leave = |app: &mut App, clock: &mut f64| {
+            *clock += 1.0;
+            let mut output = frame(app, *clock);
+            let update = output
+                .platform_output
+                .accesskit_update
+                .expect("screen-reader tree");
+            output.textures_delta.clear();
+            update
+                .nodes
+                .iter()
+                .any(|(_, node)| node.label() == Some("Leave full screen (Esc)"))
+        };
+        assert!(
+            leave(&mut app, &mut clock),
+            "fresh input keeps the controls reachable"
+        );
+        // Long stillness: the controls are gone, and with them the button.
+        app.fullscreen_activity = std::time::Instant::now() - std::time::Duration::from_secs(30);
+        clock += 10.0;
+        let mut output = frame(&mut app, clock);
+        output.textures_delta.clear();
+        let update = output
+            .platform_output
+            .accesskit_update
+            .expect("screen-reader tree");
+        assert!(
+            !update
+                .nodes
+                .iter()
+                .any(|(_, node)| node.label() == Some("Leave full screen (Esc)")),
+            "resting input dissolves the controls"
+        );
+        // A pointer move brings them back.
+        clock += 10.0;
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                time: Some(clock),
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1280.0, 800.0),
+                )),
+                events: vec![egui::Event::PointerMoved(egui::pos2(400.0, 300.0))],
+                ..Default::default()
+            },
+            |ui| app.frame_ui(ui),
+        );
+        output.textures_delta.clear();
+        assert!(
+            leave(&mut app, &mut clock),
+            "moving the pointer surfaces the controls again"
+        );
+        app.backend.shutdown();
+    }
+
     #[test]
     fn translated_panel_states_keep_original_lyrics_and_failure_details() {
         use crate::i18n::{Locale, gettext};
@@ -1471,7 +1581,8 @@ mod tests {
             app.show_lyrics_panel = true;
             app.lyrics_uri = app.now_playing().map(|now| now.uri);
             for fullscreen in [false, true] {
-                app.lyrics_fullscreen = fullscreen.then_some(false);
+                app.player_fullscreen = fullscreen.then_some(false);
+                app.fullscreen_lyrics = fullscreen;
                 let view = |app: &mut App, ui: &mut egui::Ui| app.frame_ui(ui);
                 let mut instrumental = sample_lyrics();
                 instrumental.instrumental = true;
@@ -4282,7 +4393,8 @@ mod tests {
         app.attach(&ctx);
         populate(&mut app);
         app.show_lyrics_panel = true;
-        app.lyrics_fullscreen = Some(false);
+        app.player_fullscreen = Some(false);
+        app.fullscreen_lyrics = true;
         app.lyrics = Loadable::Loaded(Some(sample_lyrics()));
         app.lyrics_following = false;
         let mut sizes = Vec::new();
@@ -4395,9 +4507,19 @@ mod tests {
         app.lyrics = Loadable::Loaded(Some(sample_lyrics()));
         app.show_lyrics_panel = true;
         frame(&ctx, &mut app);
-        app.lyrics_fullscreen = Some(false);
+        // The full-screen player renders both of its faces: the words and
+        // the cover, and the words in each of the two layouts.
+        app.player_fullscreen = Some(false);
+        app.fullscreen_lyrics = true;
         frame(&ctx, &mut app);
-        app.lyrics_fullscreen = None;
+        app.settings.fullscreen_lyrics_layout = crate::settings::FullscreenLyricsLayout::Split;
+        frame(&ctx, &mut app);
+        app.fullscreen_lyrics = false;
+        frame(&ctx, &mut app);
+        app.show_queue_panel = true;
+        frame(&ctx, &mut app);
+        app.show_queue_panel = false;
+        app.player_fullscreen = None;
         app.show_lyrics_panel = false;
         for dialog in [
             Dialog::Shortcuts,
@@ -4436,7 +4558,8 @@ mod tests {
             frame(&ctx, &mut app);
         }
         assert!(!app.palette.dark);
-        app.lyrics_fullscreen = Some(false);
+        app.player_fullscreen = Some(false);
+        app.fullscreen_lyrics = true;
         frame(&ctx, &mut app);
         app.backend.shutdown();
         let _ = std::fs::remove_dir_all(root);

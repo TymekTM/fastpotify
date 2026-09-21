@@ -121,8 +121,33 @@ pub fn handle(app: &mut App, ctx: &egui::Context) {
             key(Modifiers::NONE, Key::S, Action::ToggleShuffle);
             key(Modifiers::NONE, Key::R, Action::CycleRepeat);
             key(Modifiers::NONE, Key::Q, Action::ToggleQueuePanel);
-            key(Modifiers::NONE, Key::L, Action::ToggleLyricsPanel);
+            if app.player_fullscreen.is_some() {
+                // Inside the full-screen player the words own the screen: L
+                // swaps the cover for the lyrics instead of the side panel.
+                // The Shift variant is looked for first: egui lets a plain
+                // shortcut take the Shift one that extends it.
+                key(
+                    Modifiers::SHIFT,
+                    Key::L,
+                    Action::ToggleFullscreenLyricsLayout,
+                );
+                key(Modifiers::NONE, Key::L, Action::ToggleFullscreenLyrics);
+            } else {
+                key(Modifiers::NONE, Key::L, Action::ToggleLyricsPanel);
+            }
             key(Modifiers::NONE, Key::Slash, Action::FocusSearch);
+            // F11 toggles the full-screen player, except while the Winamp
+            // mini window owns the screen: the view has nothing to fill.
+            // Entering still needs something to play, which the apply side
+            // enforces, so the key may ask for a mode it will not get.
+            let in_player_fullscreen = app.player_fullscreen.is_some();
+            if !app.settings.winamp_window {
+                key(
+                    Modifiers::NONE,
+                    Key::F11,
+                    Action::SetPlayerFullscreen(!in_player_fullscreen),
+                );
+            }
         }
     });
     if !typing
@@ -172,8 +197,8 @@ pub fn handle(app: &mut App, ctx: &egui::Context) {
             app.actions.push(Action::CloseDialog);
         } else if app.show_devices {
             app.show_devices = false;
-        } else if app.lyrics_fullscreen.is_some() {
-            app.actions.push(Action::SetLyricsFullscreen(false));
+        } else if app.player_fullscreen.is_some() {
+            app.actions.push(Action::SetPlayerFullscreen(false));
         }
     }
 }
@@ -195,7 +220,8 @@ pub const SHORTCUTS: &[(&str, &str)] = &[
     ("R", "Cycle repeat"),
     ("Q", "Show the queue"),
     ("L", "Show the lyrics"),
-    ("Esc", "Lyrics: leave full screen"),
+    ("F11", "Full-screen player"),
+    ("Esc", "Full-screen player: leave"),
     (platform_shortcut("Ctrl+F  or  /", "Cmd+F  or  /"), "Search"),
     (SIDEBAR_SHORTCUT, "Show or hide the sidebar"),
     ("Alt+←  /  Alt+→", "Back or forward"),
@@ -484,6 +510,89 @@ mod tests {
             app.actions.as_slice(),
             [Action::ToggleSaved(uri)] if uri == "spotify:track:trk0"
         ));
+        app.backend.shutdown();
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    /// F11 enters the full-screen player while something plays, L inside it
+    /// swaps the cover for the lyrics, and Shift+L flips the layout under
+    /// comparison. With nothing playing the state machine refuses to enter,
+    /// and in the Winamp mini window the key is not ours at all.
+    #[test]
+    fn f11_and_l_drive_the_full_screen_player() {
+        let root =
+            std::env::temp_dir().join(format!("fastpotify-player-keys-{}", std::process::id()));
+        let dirs = AppDirs {
+            config: root.join("config"),
+            state: root.join("state"),
+            cache: root.join("cache"),
+        };
+        let mut app = App::new(
+            &crate::backend::Waker::default(),
+            dirs,
+            Settings::default(),
+            AppOptions {
+                media_controls: false,
+                restore_sign_in: false,
+                tray: false,
+            },
+        );
+        let ctx = egui::Context::default();
+        let press = |app: &mut App, key: Key, modifiers: Modifiers| {
+            app.actions.clear();
+            let input = egui::RawInput {
+                events: vec![egui::Event::Key {
+                    key,
+                    physical_key: None,
+                    pressed: true,
+                    repeat: false,
+                    modifiers,
+                }],
+                ..Default::default()
+            };
+            let mut output = ctx.run_ui(input, |ui| handle(app, ui.ctx()));
+            output.textures_delta.clear();
+            format!("{:?}", app.actions)
+        };
+
+        // Nothing plays yet: the key still asks, and the state machine
+        // refuses to enter an empty full-screen player.
+        assert_eq!(
+            press(&mut app, Key::F11, Modifiers::NONE),
+            format!("{:?}", [Action::SetPlayerFullscreen(true)])
+        );
+        app.apply(Action::SetPlayerFullscreen(true), &ctx);
+        assert!(app.player_fullscreen.is_none());
+        crate::demo::populate(&mut app);
+        // While the Winamp mini window owns the screen, F11 is inert even
+        // with something playing.
+        app.settings.winamp_window = true;
+        assert_eq!(press(&mut app, Key::F11, Modifiers::NONE), "[]");
+        app.settings.winamp_window = false;
+        assert_eq!(
+            press(&mut app, Key::F11, Modifiers::NONE),
+            format!("{:?}", [Action::SetPlayerFullscreen(true)])
+        );
+        app.apply(Action::SetPlayerFullscreen(true), &ctx);
+        assert!(app.player_fullscreen.is_some());
+        // Inside the view, L swaps the cover for the words and the side-panel
+        // shortcut waits outside; Shift+L turns the comparison layout over.
+        assert_eq!(
+            press(&mut app, Key::L, Modifiers::NONE),
+            format!("{:?}", [Action::ToggleFullscreenLyrics])
+        );
+        let flipped = format!("{:?}", [Action::ToggleFullscreenLyricsLayout]);
+        assert_eq!(press(&mut app, Key::L, Modifiers::SHIFT), flipped);
+        // Esc leaves, and with the view gone L is the panel's key again.
+        assert_eq!(
+            press(&mut app, Key::Escape, Modifiers::NONE),
+            format!("{:?}", [Action::SetPlayerFullscreen(false)])
+        );
+        app.apply(Action::SetPlayerFullscreen(false), &ctx);
+        assert_eq!(
+            press(&mut app, Key::L, Modifiers::NONE),
+            format!("{:?}", [Action::ToggleLyricsPanel])
+        );
         app.backend.shutdown();
         let _ = std::fs::remove_dir_all(root);
     }

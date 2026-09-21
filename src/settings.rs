@@ -115,6 +115,19 @@ pub enum ProxyMode {
     Socks,
 }
 
+/// How the full-screen player shows its lyrics: beside the cover or instead
+/// of it. Temporary while both layouts are compared; the losing one is
+/// removed and this choice goes with it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum FullscreenLyricsLayout {
+    /// The cover keeps one half of the screen, the lyrics the other.
+    #[default]
+    Split,
+    /// The lyrics replace the cover.
+    Swap,
+}
+
 impl ProxyMode {
     pub const ALL: [ProxyMode; 4] = [Self::Off, Self::System, Self::Http, Self::Socks];
 
@@ -206,6 +219,10 @@ pub struct Settings {
     pub sidebar_width: f32,
     pub lyrics_width: f32,
     pub queue_width: f32,
+    /// How the full-screen player lays out its lyrics: beside or instead of
+    /// the cover. Temporary while both layouts are compared.
+    #[serde(default)]
+    pub fullscreen_lyrics_layout: FullscreenLyricsLayout,
     /// Use compact single-line rows without cover art in track lists.
     pub tracklist_compact: bool,
     pub search_history: Vec<String>,
@@ -354,6 +371,7 @@ impl Default for Settings {
             sidebar_width: 250.0,
             lyrics_width: 360.0,
             queue_width: 360.0,
+            fullscreen_lyrics_layout: FullscreenLyricsLayout::default(),
             tracklist_compact: false,
             search_history: Vec::new(),
             show_shortcut_hints: true,

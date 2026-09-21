@@ -225,6 +225,8 @@ main fields are:
 | `liked_songs_pinned` | `true` | Keep Liked Songs in the pin block; older settings place it first until moved |
 | `sidebar_compact` | `false` | Names only in the library sidebar, no covers |
 | `tracklist_compact` | `false` | One-line track rows without covers |
+| `fullscreen_lyrics_layout` | `split` | Full-screen player lyrics layout while the two are being compared: `split` beside the cover or `swap` in its place (on `main`, after 0.8.0) |
+| `queue_width` | `360` | Queue panel width in points, remembered while you drag it |
 | `winamp_window` | `false` | The window is the Winamp mini player |
 | `winamp_show_taskbar` | `true` | Windows only, since 0.8.0: show the Winamp window's taskbar button; the main window always keeps its button |
 | `skin` | none | File or folder name in the skins folder; blank uses the built-in skin |
@@ -286,10 +288,14 @@ settings.
 and `--demo-show` adds surfaces on top of it: a comma separated list of
 `queue`, `playing-next`, `devices`, `shortcuts`, `premium`, `create`, `duplicate`, `light`,
 `focus`, `winamp`, `playlist`, `eq`, `eq-shade`, `compact`, `update`, `personal-app`,
-and `collection-loading`. `update` shows a sample update badge for checking its
-layout. `personal-app` shows the personal Spotify app introduction.
+`collection-loading`, and `player-fullscreen`. `update` shows a sample update badge for
+checking its layout. `personal-app` shows the personal Spotify app introduction.
 `collection-loading` keeps known collection metadata and placeholder artwork
 visible while replacing the page content, with unfinished controls disabled.
+`player-fullscreen` enters the full-screen player on its cover;
+`player-fullscreen-lyrics` enters it on the words, and
+`player-fullscreen-split` and `player-fullscreen-swap` pick either of the two
+lyrics layouts for like-for-like captures.
 
 `--demo-shot <PATH>` writes the window to a PNG and exits, which is useful for
 making deterministic screenshots for these pages:

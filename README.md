@@ -139,6 +139,12 @@ AUR and Homebrew packages now use the Spotifast name. See [rename compatibility]
 - **Lyrics.** Follow synced lyrics in a side panel or full-screen view, or read
   unsynced lyrics when timestamps are unavailable. Full-screen lyrics scroll
   smoothly and highlight the playing line automatically.
+  unsynced lyrics when timestamps are unavailable.
+- **Full-screen player.** On `main`, after 0.8.0, `F11` fills the window with
+  the playing cover, its title, and its artist over a blurred backdrop, in
+  the light or dark theme you use. Playback controls appear when the pointer
+  or a key moves and hide again with the pointer; the lyrics and the queue
+  live in the same view.
 - **Resumes the last session.** On startup, the last song is paused where it
   stopped. Play resumes it, and the other playback controls work before it
   starts.
@@ -395,6 +401,8 @@ still in progress.
 | `B` | Like or unlike the playing song |
 | `S` / `R` | Shuffle / cycle repeat |
 | `Q` | Queue panel |
+| `L` | Lyrics panel |
+| `F11` | Full-screen player (`Esc` or `F11` leaves; `L` in it swaps cover for lyrics) |
 | `Ctrl+F` or `/` | Search |
 | `Ctrl+B` | Show or hide the sidebar |
 | `Alt+←` / `Alt+→` | Back or forward |

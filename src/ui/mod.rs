@@ -6,6 +6,7 @@ pub mod artist;
 pub mod collection;
 pub(crate) mod devices;
 mod dialogs;
+pub mod fullscreen;
 pub mod home;
 mod keys;
 pub mod library;
@@ -48,10 +49,16 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         window_resize(ui);
         return;
     }
-    player_bar::show(app, ui);
-    if app.lyrics_fullscreen.is_some() {
-        lyrics::fullscreen(app, ui);
+    if app.player_fullscreen.is_some() {
+        // The view owns the whole window and draws its own controls; the
+        // queue stays available as its side panel.
+        let window = ui.max_rect();
+        if app.show_queue_panel {
+            queue::side_panel(app, ui);
+        }
+        fullscreen::show(app, ui, window);
     } else {
+        player_bar::show(app, ui);
         if app.settings.sidebar_visible {
             sidebar::show(app, ui);
         }

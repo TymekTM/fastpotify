@@ -989,11 +989,19 @@ pub enum Action {
     ToggleSidebar,
     ToggleQueuePanel,
     ToggleLyricsPanel,
-    SetLyricsFullscreen(bool),
+    /// Enter or leave the full-screen player. Entering does nothing while
+    /// nothing plays.
+    SetPlayerFullscreen(bool),
+    /// In the full-screen player: show the lyrics instead of the cover, or
+    /// the other way around.
+    ToggleFullscreenLyrics,
     LyricsLineShown(Option<usize>),
     FollowLyrics,
     PauseLyricsFollow,
     RetryLyrics,
+    /// Temporary: switch the full-screen lyrics layout between split and
+    /// swap while both are compared. Removed together with the losing one.
+    ToggleFullscreenLyricsLayout,
     ToggleDevicesPopup,
     /// Ask GitHub for the latest release and report the result to the user.
     CheckForUpdates,

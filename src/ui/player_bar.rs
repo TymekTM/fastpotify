@@ -255,17 +255,17 @@ fn now_playing_block(app: &mut App, ui: &mut egui::Ui, region: Rect, now: Option
     }
 }
 
-fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region: Rect) {
+/// The transport cluster and the progress row, shared by the player bar and
+/// the full-screen player's controls. Everything is placed with explicit
+/// rects: egui's implicit rows centre each widget in the row height known
+/// when it is added, which left earlier icons riding high next to the play
+/// disc.
+///
+/// The buttons row (36) and the progress row (~15, after a 6px gap) form
+/// one cluster, centred as a group in the 88px bar: the buttons sit 8px
+/// above the bar's midline and the progress row 23px below it.
+pub(super) fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region: Rect) {
     let palette = app.palette;
-    // Everything here is placed with explicit rects: egui's implicit rows
-    // centre each widget in the row height known when it is added, which
-    // left earlier icons riding high next to the play disc.
-    //
-    // The buttons row (36) and the progress row (~15, after a 6px gap) form
-    // one cluster, centred as a group in the 88px bar: the buttons sit 8px
-    // above the bar's midline and the progress row 23px below it. Measured
-    // on screen this puts equal breathing room above and beneath the
-    // cluster.
     let cy = region.center().y - 8.0;
     let enabled = now.is_some_and(|now| now.can_control) || app.is_connected();
     let playing = now.is_some_and(|now| now.playing);
@@ -485,59 +485,7 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
 fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>) {
     let palette = app.palette;
     ui.spacing_mut().item_spacing.x = 6.0;
-    let volume = now
-        .map(|now| now.volume_percent)
-        .unwrap_or_else(|| crate::app::volume_to_percent(app.local.volume));
-    let shown = match app.volume_preview {
-        Some(fraction) => (fraction * 100.0).round() as u8,
-        None => volume,
-    };
-    match thin_slider(
-        ui,
-        &palette,
-        egui::Id::new("volume-slider"),
-        &gettext(app.locale, "Volume (%)"),
-        shown as f32 / 100.0,
-        92.0,
-        Some(0.05),
-    ) {
-        SliderEvent::Dragging(value) => {
-            app.volume_preview = Some(value);
-            // Local volume is cheap to apply continuously; remote goes on release.
-            if now.is_none_or(|now| now.local) {
-                app.actions
-                    .push(Action::PreviewVolume((value * 100.0).round() as u8));
-            }
-        }
-        SliderEvent::Committed(value) => {
-            app.volume_preview = None;
-            app.actions
-                .push(Action::SetVolume((value * 100.0).round() as u8));
-        }
-        SliderEvent::None => {}
-    }
-    let volume_icon = match shown {
-        0 => Icon::VolumeX,
-        1..=33 => Icon::Volume,
-        34..=66 => Icon::Volume1,
-        _ => Icon::Volume2,
-    };
-    if theme::icon_button(
-        ui,
-        volume_icon,
-        18.0,
-        palette.secondary,
-        palette.text,
-        &if shown == 0 {
-            gettext(app.locale, "Unmute")
-        } else {
-            gettext(app.locale, "Mute")
-        },
-    )
-    .clicked()
-    {
-        app.actions.push(Action::ToggleMute);
-    }
+    volume_control(app, ui, now);
     ui.add_space(4.0);
     let remote = now.is_some_and(|now| !now.local);
     let devices = theme::icon_button(
@@ -590,5 +538,80 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>) {
     .clicked()
     {
         app.actions.push(Action::ToggleLyricsPanel);
+    }
+    // The full-screen player needs something to show.
+    let player_fullscreen = theme::icon_button(
+        ui,
+        Icon::Expand,
+        18.0,
+        if now.is_some() {
+            palette.secondary
+        } else {
+            palette.dim
+        },
+        palette.text,
+        &gettext(app.locale, "Full screen player"),
+    );
+    if player_fullscreen.clicked() && now.is_some() {
+        app.actions.push(Action::SetPlayerFullscreen(true));
+    }
+}
+
+/// The volume slider and its mute button, shared by the player bar and the
+/// full-screen player's controls.
+pub(super) fn volume_control(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>) {
+    let palette = app.palette;
+    let volume = now
+        .map(|now| now.volume_percent)
+        .unwrap_or_else(|| crate::app::volume_to_percent(app.local.volume));
+    let shown = match app.volume_preview {
+        Some(fraction) => (fraction * 100.0).round() as u8,
+        None => volume,
+    };
+    match thin_slider(
+        ui,
+        &palette,
+        egui::Id::new("volume-slider"),
+        &gettext(app.locale, "Volume (%)"),
+        shown as f32 / 100.0,
+        92.0,
+        Some(0.05),
+    ) {
+        SliderEvent::Dragging(value) => {
+            app.volume_preview = Some(value);
+            // Local volume is cheap to apply continuously; remote goes on release.
+            if now.is_none_or(|now| now.local) {
+                app.actions
+                    .push(Action::PreviewVolume((value * 100.0).round() as u8));
+            }
+        }
+        SliderEvent::Committed(value) => {
+            app.volume_preview = None;
+            app.actions
+                .push(Action::SetVolume((value * 100.0).round() as u8));
+        }
+        SliderEvent::None => {}
+    }
+    let volume_icon = match shown {
+        0 => Icon::VolumeX,
+        1..=33 => Icon::Volume,
+        34..=66 => Icon::Volume1,
+        _ => Icon::Volume2,
+    };
+    if theme::icon_button(
+        ui,
+        volume_icon,
+        18.0,
+        palette.secondary,
+        palette.text,
+        &if shown == 0 {
+            gettext(app.locale, "Unmute")
+        } else {
+            gettext(app.locale, "Mute")
+        },
+    )
+    .clicked()
+    {
+        app.actions.push(Action::ToggleMute);
     }
 }
