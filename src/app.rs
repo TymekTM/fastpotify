@@ -7934,9 +7934,9 @@ impl App {
                         }
                     }
                     self.player_fullscreen_seen = false;
-                    // Entering shows the cover; the lyrics-panel expand button
-                    // follows with ToggleFullscreenLyrics.
-                    self.fullscreen_lyrics = false;
+                    // Entering keeps the words on screen when the lyrics
+                    // panel is open; otherwise it opens on the cover.
+                    self.fullscreen_lyrics = self.show_lyrics_panel;
                     self.fullscreen_activity = Instant::now();
                     self.lyrics_line_shown = None;
                     self.request_lyrics();
@@ -14453,6 +14453,36 @@ mod tests {
             !output.viewport_output[&egui::ViewportId::ROOT]
                 .commands
                 .contains(&egui::ViewportCommand::Fullscreen(true))
+        );
+        app.backend.shutdown();
+    }
+
+    #[test]
+    fn entering_the_player_fullscreen_keeps_open_lyrics_on_the_words() {
+        let mut app = headless_app();
+        crate::demo::populate(&mut app);
+        let ctx = egui::Context::default();
+        app.apply(Action::ToggleLyricsPanel, &ctx);
+        assert!(app.show_lyrics_panel);
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            app.apply(Action::SetPlayerFullscreen(true), ui.ctx());
+        });
+        output.textures_delta.clear();
+        assert!(
+            app.fullscreen_lyrics,
+            "an open lyrics panel enters on the words"
+        );
+        app.apply(Action::SetPlayerFullscreen(false), &ctx);
+        assert!(app.show_lyrics_panel, "leaving keeps the panel open");
+        app.apply(Action::ToggleLyricsPanel, &ctx);
+        assert!(!app.show_lyrics_panel);
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            app.apply(Action::SetPlayerFullscreen(true), ui.ctx());
+        });
+        output.textures_delta.clear();
+        assert!(
+            !app.fullscreen_lyrics,
+            "without the panel, entering shows the cover"
         );
         app.backend.shutdown();
     }

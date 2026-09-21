@@ -598,7 +598,8 @@ fn sample_lyrics() -> crate::lyrics::Lyrics {
 }
 
 /// Loads the sample words and enters the full-screen player on them, the
-/// way the lyrics panel's expand button does.
+/// way the lyrics panel's expand button does: the open panel is what puts
+/// the view on the words.
 #[cfg(feature = "demo")]
 fn fullscreen_lyrics_fixture(app: &mut App) {
     app.lyrics_uri = app.now_playing().map(|now| now.uri);
@@ -606,7 +607,6 @@ fn fullscreen_lyrics_fixture(app: &mut App) {
     app.lyrics_following = true;
     app.show_lyrics_panel = true;
     app.actions.push(Action::SetPlayerFullscreen(true));
-    app.actions.push(Action::ToggleFullscreenLyrics);
 }
 
 /// Applies `--demo-page` and `--demo-show`.

@@ -71,10 +71,8 @@ pub fn side_panel(app: &mut App, ui: &mut egui::Ui) {
                 )
                 .clicked()
                 {
-                    // The full-screen player starts on its cover; the words
-                    // are one toggle away, and this button brings them now.
+                    // The panel is open, so entering lands on the words.
                     app.actions.push(Action::SetPlayerFullscreen(true));
-                    app.actions.push(Action::ToggleFullscreenLyrics);
                 }
                 let loaded = matches!(&app.lyrics, Loadable::Loaded(Some(_)));
                 if loaded
