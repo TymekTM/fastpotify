@@ -359,6 +359,9 @@ fn lyrics_contents(app: &mut App, ui: &mut egui::Ui) {
     egui::ScrollArea::vertical()
         .id_salt(("fullscreen-lyrics-scroll", &now.uri))
         .auto_shrink([false, false])
+        // The words own the screen: the wheel and a dragged pointer scroll,
+        // the bar itself has nothing to say here.
+        .scroll_bar_visibility(egui::containers::scroll_area::ScrollBarVisibility::AlwaysHidden)
         .show(ui, |ui| {
             // Before the first line there is nothing to highlight, so the
             // panel sits at the top rather than wherever it was left.
