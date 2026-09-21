@@ -58,7 +58,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                     .max_rect(right_band)
                     .layout(Layout::right_to_left(Align::Center)),
             );
-            extras(app, &mut right_ui, now.as_ref());
+            extras(app, &mut right_ui, now.as_ref(), false);
         });
 }
 
@@ -482,7 +482,16 @@ pub(super) fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlayin
     );
 }
 
-fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>) {
+/// The icon row at the right end of the bar: volume, devices, queue,
+/// lyrics, and the full-screen toggle. Shared verbatim by the full-screen
+/// player's control bar, where `in_fullscreen` turns the toggle into the
+/// way out and points the lyrics toggle at the view's words.
+pub(super) fn extras(
+    app: &mut App,
+    ui: &mut egui::Ui,
+    now: Option<&NowPlaying>,
+    in_fullscreen: bool,
+) {
     let palette = app.palette;
     ui.spacing_mut().item_spacing.x = 6.0;
     volume_control(app, ui, now);
@@ -523,11 +532,18 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>) {
     {
         app.actions.push(Action::ToggleQueuePanel);
     }
+    // The lyrics toggle points at the side panel, or at the view's own
+    // words when the row is drawn inside the full-screen player.
+    let (lyrics_on, lyrics_action) = if in_fullscreen {
+        (app.fullscreen_lyrics, Action::ToggleFullscreenLyrics)
+    } else {
+        (app.show_lyrics_panel, Action::ToggleLyricsPanel)
+    };
     if theme::icon_button(
         ui,
         Icon::Mic,
         18.0,
-        if app.show_lyrics_panel {
+        if lyrics_on {
             palette.accent
         } else {
             palette.secondary
@@ -537,9 +553,25 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>) {
     )
     .clicked()
     {
-        app.actions.push(Action::ToggleLyricsPanel);
+        app.actions.push(lyrics_action);
     }
-    // The full-screen player needs something to show.
+    // The full-screen player needs something to show. Inside it the same
+    // button becomes the way out.
+    if in_fullscreen {
+        if theme::icon_button(
+            ui,
+            Icon::Shrink,
+            18.0,
+            palette.text,
+            palette.text,
+            &gettext(app.locale, "Leave full screen (Esc)"),
+        )
+        .clicked()
+        {
+            app.actions.push(Action::SetPlayerFullscreen(false));
+        }
+        return;
+    }
     let player_fullscreen = theme::icon_button(
         ui,
         Icon::Expand,

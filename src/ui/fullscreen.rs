@@ -21,6 +21,8 @@ const CONTROLS_FADE: f32 = 0.22;
 const CONTENT_MARGIN: f32 = 48.0;
 /// Below this width the split layout has no room for two columns.
 const SPLIT_MIN_WIDTH: f32 = 700.0;
+/// Keeps the control bar's like button and icon row off the screen edges.
+const CONTROLS_MARGIN: f32 = 24.0;
 
 pub fn show(app: &mut App, ui: &mut egui::Ui, window: Rect) {
     let palette = app.palette;
@@ -535,8 +537,20 @@ fn controls(app: &mut App, ctx: &egui::Context, viewport: Rect) {
             );
             let now = app.now_playing();
             player_bar::transport(app, ui, now.as_ref(), center);
+            // Like sits on the left here, as it does beside the track info
+            // in the bar, and the icon row stops short of the edge.
+            let left_band = Rect::from_min_size(
+                pos2(bar.left() + CONTROLS_MARGIN, bar.center().y - 15.0),
+                vec2(30.0, 30.0),
+            );
+            let mut left_ui = ui.new_child(
+                UiBuilder::new()
+                    .max_rect(left_band)
+                    .layout(Layout::left_to_right(Align::Center)),
+            );
+            like_button(app, &mut left_ui, now.as_ref());
             let right_band = Rect::from_min_size(
-                pos2(bar.right() - side, bar.center().y - 15.0),
+                pos2(bar.right() - side - CONTROLS_MARGIN, bar.center().y - 15.0),
                 vec2(side, 30.0),
             );
             let mut right_ui = ui.new_child(
@@ -544,77 +558,32 @@ fn controls(app: &mut App, ctx: &egui::Context, viewport: Rect) {
                     .max_rect(right_band)
                     .layout(Layout::right_to_left(Align::Center)),
             );
-            extras(app, &mut right_ui, now.as_ref());
+            player_bar::extras(app, &mut right_ui, now.as_ref(), true);
         });
 }
 
-fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&crate::app::NowPlaying>) {
+fn like_button(app: &mut App, ui: &mut egui::Ui, now: Option<&crate::app::NowPlaying>) {
+    let Some(now) = now.filter(|now| !now.is_episode) else {
+        return;
+    };
     let palette = app.palette;
-    ui.spacing_mut().item_spacing.x = 6.0;
-    if theme::icon_button(
-        ui,
-        Icon::Shrink,
-        18.0,
-        palette.text,
-        palette.text,
-        &gettext(app.locale, "Leave full screen (Esc)"),
-    )
-    .clicked()
-    {
-        app.actions.push(Action::SetPlayerFullscreen(false));
+    let saved = app.is_saved(&now.uri).unwrap_or(false);
+    let (icon, color, tooltip) = if saved {
+        (
+            Icon::HeartFilled,
+            palette.accent,
+            gettext(app.locale, "Remove from Liked Songs"),
+        )
+    } else {
+        (
+            Icon::Heart,
+            palette.secondary,
+            gettext(app.locale, "Save to Liked Songs"),
+        )
+    };
+    if theme::icon_button(ui, icon, 17.0, color, palette.text, &tooltip).clicked() {
+        app.actions.push(Action::ToggleSaved(now.uri.clone()));
     }
-    if theme::icon_button(
-        ui,
-        Icon::ListVideo,
-        18.0,
-        if app.show_queue_panel {
-            palette.accent
-        } else {
-            palette.secondary
-        },
-        palette.text,
-        &gettext(app.locale, "Queue"),
-    )
-    .clicked()
-    {
-        app.actions.push(Action::ToggleQueuePanel);
-    }
-    if theme::icon_button(
-        ui,
-        Icon::Mic,
-        18.0,
-        if app.fullscreen_lyrics {
-            palette.accent
-        } else {
-            palette.secondary
-        },
-        palette.text,
-        &gettext(app.locale, "Lyrics"),
-    )
-    .clicked()
-    {
-        app.actions.push(Action::ToggleFullscreenLyrics);
-    }
-    if let Some(now) = now.filter(|now| !now.is_episode) {
-        let saved = app.is_saved(&now.uri).unwrap_or(false);
-        let (icon, color, tooltip) = if saved {
-            (
-                Icon::HeartFilled,
-                palette.accent,
-                gettext(app.locale, "Remove from Liked Songs"),
-            )
-        } else {
-            (
-                Icon::Heart,
-                palette.secondary,
-                gettext(app.locale, "Save to Liked Songs"),
-            )
-        };
-        if theme::icon_button(ui, icon, 17.0, color, palette.text, &tooltip).clicked() {
-            app.actions.push(Action::ToggleSaved(now.uri.clone()));
-        }
-    }
-    player_bar::volume_control(app, ui, now);
 }
 
 #[cfg(test)]
