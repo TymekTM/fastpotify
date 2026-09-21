@@ -351,10 +351,14 @@ fn lyrics_contents(app: &mut App, ui: &mut egui::Ui) {
     let size = (ui.available_width() * 0.046).clamp(28.0, 42.0);
     // The line being sung brightens; all lines keep the same font metrics
     // so highlighting cannot rewrap the words during a transition.
-    // A line takes 300 ms to light up or fade.
-    let quiet = palette
-        .text
-        .gamma_multiply(if palette.dark { 0.68 } else { 0.55 });
+    // A line takes 300 ms to light up or fade. The rest step well back
+    // toward the backdrop: past and future words stay readable, but the
+    // playing line is the only one that argues for attention.
+    let quiet = lyrics::blend(
+        palette.window,
+        palette.text,
+        if palette.dark { 0.42 } else { 0.45 },
+    );
     ui.spacing_mut().scroll.fade.strength = 0.0;
     egui::ScrollArea::vertical()
         .id_salt(("fullscreen-lyrics-scroll", &now.uri))
