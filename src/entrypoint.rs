@@ -300,7 +300,7 @@ fn format_now_playing(snapshot: &str) -> String {
         "playing" | "paused" => {
             let mark = if state == "playing" { "▶" } else { "⏸" };
             format!(
-                "{mark} {title} — {artists}  [{} / {}]",
+                "{mark} {title} - {artists}  [{} / {}]",
                 clock(position_ms),
                 clock(duration_ms)
             )
@@ -635,6 +635,8 @@ pub(crate) fn run() -> eframe::Result<()> {
                     persist_memory,
                     #[cfg(windows)]
                     thumbbar,
+                    #[cfg(windows)]
+                    caption: NativeCaption::new(cc),
                     #[cfg(feature = "demo")]
                     shot: creator_shot.clone(),
                 }))
@@ -1061,6 +1063,11 @@ mod native_window_tests {
                 persist_memory: options.persist_window,
                 #[cfg(windows)]
                 thumbbar: fastpotify::thumbbar::ThumbBar::new(),
+                #[cfg(windows)]
+                caption: NativeCaption {
+                    hwnd: 0,
+                    applied: None,
+                },
                 #[cfg(feature = "demo")]
                 shot: None,
             };
@@ -1075,6 +1082,80 @@ mod native_window_tests {
     }
 }
 
+/// Keeps the native window chrome from showing over the full-screen player.
+/// Windows draws a thin border around a borderless window whenever it is not
+/// the foreground window, and on some setups also a caption strip above it,
+/// in colors that glare against the player's backdrop. While the player is
+/// full screen the border is removed and the caption is painted in the view's
+/// own color; leaving restores the system defaults. The attributes are set
+/// ahead of time because the chrome only appears on a focus change.
+#[cfg(windows)]
+struct NativeCaption {
+    hwnd: isize,
+    /// The attribute values last applied, so a steady state costs nothing.
+    applied: Option<(bool, [u8; 3])>,
+}
+
+#[cfg(windows)]
+impl NativeCaption {
+    fn new(window: &impl raw_window_handle::HasWindowHandle) -> Self {
+        use raw_window_handle::RawWindowHandle;
+        if let Ok(RawWindowHandle::Win32(window)) =
+            window.window_handle().map(|handle| handle.as_raw())
+        {
+            Self {
+                hwnd: window.hwnd.get(),
+                applied: None,
+            }
+        } else {
+            Self {
+                hwnd: 0,
+                applied: None,
+            }
+        }
+    }
+
+    fn sync(&mut self, app: &app::App) {
+        use windows_sys::Win32::Foundation::HWND;
+        use windows_sys::Win32::Graphics::Dwm::{
+            DWMWA_BORDER_COLOR, DWMWA_CAPTION_COLOR, DWMWA_COLOR_DEFAULT, DWMWA_COLOR_NONE,
+            DwmSetWindowAttribute,
+        };
+        if self.hwnd == 0 {
+            return;
+        }
+        let window = app.palette.window;
+        let state = (
+            app.player_fullscreen.is_some(),
+            [window.r(), window.g(), window.b()],
+        );
+        if self.applied == Some(state) {
+            return;
+        }
+        let (caption, border) = if state.0 {
+            // COLORREF packs as 0x00BBGGRR.
+            (
+                u32::from(state.1[2]) << 16 | u32::from(state.1[1]) << 8 | u32::from(state.1[0]),
+                DWMWA_COLOR_NONE,
+            )
+        } else {
+            (DWMWA_COLOR_DEFAULT, DWMWA_COLOR_DEFAULT)
+        };
+        let hwnd = self.hwnd as HWND;
+        let apply = |attribute: u32, color: u32| unsafe {
+            DwmSetWindowAttribute(
+                hwnd,
+                attribute,
+                &color as *const u32 as *const core::ffi::c_void,
+                std::mem::size_of::<u32>() as u32,
+            );
+        };
+        apply(DWMWA_CAPTION_COLOR as u32, caption);
+        apply(DWMWA_BORDER_COLOR as u32, border);
+        self.applied = Some(state);
+    }
+}
+
 /// The eframe adapter around the long-lived [`app::App`]: delegates frames
 /// and, when the window goes away, hands the state back for the next window.
 struct Shell {
@@ -1085,6 +1166,8 @@ struct Shell {
     persist_memory: bool,
     #[cfg(windows)]
     thumbbar: fastpotify::thumbbar::ThumbBar,
+    #[cfg(windows)]
+    caption: NativeCaption,
     /// A pending `--demo-shot` capture, if this is a screenshot run.
     #[cfg(feature = "demo")]
     shot: Option<Shot>,
@@ -1154,6 +1237,10 @@ impl eframe::App for Shell {
 
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         if let Some(app) = self.app.as_mut() {
+            // Keep the native caption in step with the player state before
+            // anything else can trigger a focus change.
+            #[cfg(windows)]
+            self.caption.sync(app);
             #[cfg(target_os = "macos")]
             for command in fastpotify::mac_menu::drain_commands() {
                 use fastpotify::mac_menu::MenuCommand;
