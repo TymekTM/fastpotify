@@ -1,12 +1,12 @@
-//! The full-screen player: the cover, the lyrics, and controls that hide
-//! with the pointer. One view replaces the former full-screen lyrics mode;
-//! the words are one of the things it can show.
+//! The full-screen player: the cover, the lyrics, and the controls pinned
+//! to the bottom edge. One view replaces the former full-screen lyrics
+//! mode; the words are one of the things it can show.
 
 use std::time::Duration;
 
 use egui::{Align, Color32, Layout, Rect, Sense, UiBuilder, pos2, vec2};
 
-use crate::app::{App, FULLSCREEN_CONTROLS_IDLE};
+use crate::app::App;
 use crate::i18n::{gettext, pgettext};
 use crate::model::{Action, Loadable};
 use crate::settings::FullscreenLyricsLayout;
@@ -15,8 +15,6 @@ use crate::theme::{self, Icon};
 use super::widgets;
 use super::{lyrics, player_bar};
 
-/// How long the controls take to appear or dissolve, matching a lyric line.
-const CONTROLS_FADE: f32 = 0.22;
 /// Room left around the content so it never touches the window edges.
 const CONTENT_MARGIN: f32 = 48.0;
 /// Below this width the split layout has no room for two columns.
@@ -480,28 +478,9 @@ fn lyrics_contents(app: &mut App, ui: &mut egui::Ui) {
     }
 }
 
-/// The player controls, an overlay that surfaces with the pointer and a key
-/// press and dissolves again with the pointer into rest. A dialog holds
-/// them up: a hidden bar cannot be behind a window nobody can dismiss.
+/// The player controls, pinned to the bottom edge of the view.
 fn controls(app: &mut App, ctx: &egui::Context, viewport: Rect) {
     let palette = app.palette;
-    let idle_for = app.fullscreen_activity.elapsed();
-    let awake = idle_for < FULLSCREEN_CONTROLS_IDLE || app.dialog.is_some();
-    let alpha =
-        ctx.animate_bool_with_time(egui::Id::new("fullscreen-controls"), awake, CONTROLS_FADE);
-    if awake {
-        ctx.request_repaint_after(FULLSCREEN_CONTROLS_IDLE.saturating_sub(idle_for));
-    }
-    if (alpha - f32::from(awake)).abs() > 0.001 {
-        ctx.request_repaint_after(Duration::from_millis(16));
-    }
-    if alpha < 0.01 {
-        if app.dialog.is_none() {
-            // Rest means no chrome and no pointer.
-            ctx.set_cursor_icon(egui::CursorIcon::None);
-        }
-        return;
-    }
     // The queue panel keeps the right edge; the controls stop at its side.
     let queue = if app.show_queue_panel {
         app.settings.queue_width
@@ -517,13 +496,10 @@ fn controls(app: &mut App, ctx: &egui::Context, viewport: Rect) {
     );
     egui::Area::new(egui::Id::new("fullscreen-controls"))
         .order(egui::Order::Foreground)
-        .interactable(awake)
         .anchor(egui::Align2::LEFT_BOTTOM, vec2(0.0, 0.0))
         .show(ctx, |ui| {
-            ui.set_opacity(alpha);
             // The bar is placed by hand, like the transport inside it: an
-            // explicit rect instead of a frame, so the fading panel is the
-            // same panel, not a relayout of one.
+            // explicit rect instead of a frame, so the panel is one panel.
             ui.painter().rect_filled(bar, 0.0, palette.panel);
             ui.painter().hline(
                 bar.x_range(),

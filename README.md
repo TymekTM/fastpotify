@@ -141,9 +141,8 @@ AUR and Homebrew packages now use the Spotifast name. See [rename compatibility]
   scroll smoothly and highlight the playing line automatically.
 - **Full-screen player.** On `main`, after 0.8.0, `F11` fills the window with
   the playing cover, its title, and its artist over a blurred backdrop, in
-  the light or dark theme you use. Playback controls appear when the pointer
-  or a key moves and hide again with the pointer; the lyrics and the queue
-  live in the same view.
+  the light or dark theme you use. Playback controls stay in the bar along
+  the bottom; the lyrics and the queue live in the same view.
 - **Resumes the last session.** On startup, the last song is paused where it
   stopped. Play resumes it, and the other playback controls work before it
   starts.

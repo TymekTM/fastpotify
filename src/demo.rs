@@ -1492,11 +1492,10 @@ mod tests {
         }
     }
 
-    /// The full-screen player's controls come with input and dissolve with
-    /// rest: the leave button is reachable while awake and gone once the
-    /// pointer has been still, until it moves again.
+    /// The full-screen player's controls stay pinned to the bottom edge:
+    /// the leave button is reachable whatever the input does.
     #[test]
-    fn fullscreen_controls_surface_with_input_and_rest_without_it() {
+    fn fullscreen_controls_stay_reachable_without_input() {
         let (ctx, mut app) = accessible_app("fullscreen-controls");
         app.actions.push(Action::SetPlayerFullscreen(true));
         let frame = |app: &mut App, time: f64| {
@@ -1531,42 +1530,13 @@ mod tests {
         };
         assert!(
             leave(&mut app, &mut clock),
-            "fresh input keeps the controls reachable"
+            "the controls are reachable on a fresh frame"
         );
-        // Long stillness: the controls are gone, and with them the button.
-        app.fullscreen_activity = std::time::Instant::now() - std::time::Duration::from_secs(30);
-        clock += 10.0;
-        let mut output = frame(&mut app, clock);
-        output.textures_delta.clear();
-        let update = output
-            .platform_output
-            .accesskit_update
-            .expect("screen-reader tree");
-        assert!(
-            !update
-                .nodes
-                .iter()
-                .any(|(_, node)| node.label() == Some("Leave full screen (Esc)")),
-            "resting input dissolves the controls"
-        );
-        // A pointer move brings them back.
-        clock += 10.0;
-        let mut output = ctx.run_ui(
-            egui::RawInput {
-                time: Some(clock),
-                screen_rect: Some(egui::Rect::from_min_size(
-                    egui::Pos2::ZERO,
-                    egui::vec2(1280.0, 800.0),
-                )),
-                events: vec![egui::Event::PointerMoved(egui::pos2(400.0, 300.0))],
-                ..Default::default()
-            },
-            |ui| app.frame_ui(ui),
-        );
-        output.textures_delta.clear();
+        // Long stillness: the bar stays put, and the button with it.
+        clock += 30.0;
         assert!(
             leave(&mut app, &mut clock),
-            "moving the pointer surfaces the controls again"
+            "still input leaves the controls in place"
         );
         app.backend.shutdown();
     }

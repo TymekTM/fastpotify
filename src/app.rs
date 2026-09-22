@@ -43,11 +43,6 @@ const TOAST_LIFETIME: Duration = Duration::from_millis(3200);
 const TOAST_FRAME: Duration = Duration::from_millis(33);
 const OPTIMISTIC_HOLD: Duration = Duration::from_millis(2500);
 
-/// How long the full-screen player's controls stay up after the last pointer
-/// or key input. Scrolling the lyrics does not count: the wheel belongs to
-/// the words, not the chrome.
-pub(crate) const FULLSCREEN_CONTROLS_IDLE: Duration = Duration::from_secs(3);
-
 /// How long a newly started context remains visible while Spotify catches up.
 /// During local takeover, Spotify may briefly alternate between old and new
 /// context state.
@@ -359,10 +354,6 @@ pub struct App {
     player_fullscreen_restore_maximized: bool,
     /// The full-screen player shows the lyrics instead of the cover.
     pub fullscreen_lyrics: bool,
-    /// When the pointer or a key last woke the full-screen player's
-    /// controls; they hide again after three seconds of rest (see
-    /// `FULLSCREEN_CONTROLS_IDLE`).
-    pub fullscreen_activity: Instant,
     pub lyrics_backdrop: crate::images::LyricsBackdrop,
     pub softened_covers: crate::images::SoftenedCovers,
     /// The track the lyrics below are for.
@@ -722,7 +713,6 @@ impl App {
             player_fullscreen_restoring: None,
             player_fullscreen_restore_maximized: false,
             fullscreen_lyrics: false,
-            fullscreen_activity: Instant::now(),
             lyrics_backdrop: Default::default(),
             softened_covers: Default::default(),
             lyrics_uri: None,
@@ -7937,7 +7927,6 @@ impl App {
                     // Entering keeps the words on screen when the lyrics
                     // panel is open; otherwise it opens on the cover.
                     self.fullscreen_lyrics = self.show_lyrics_panel;
-                    self.fullscreen_activity = Instant::now();
                     self.lyrics_line_shown = None;
                     self.request_lyrics();
                     ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(true));
@@ -8631,24 +8620,6 @@ impl App {
             && !(self.is_connected() && self.user.is_none());
         if self.settings.winamp_window && needs_sign_in && !self.switch_intent {
             self.actions.push(Action::ToggleWinampWindow);
-        }
-        // Any pointer move, press, or key wakes the full-screen player's
-        // controls. This runs before drawing so a key a shortcut consumes
-        // still counts; the wheel is left out on purpose, it scrolls lyrics.
-        if self.player_fullscreen.is_some() {
-            let woke = ctx.input(|input| {
-                input.events.iter().any(|event| {
-                    matches!(
-                        event,
-                        egui::Event::PointerMoved { .. }
-                            | egui::Event::PointerButton { pressed: true, .. }
-                            | egui::Event::Key { pressed: true, .. }
-                    )
-                })
-            });
-            if woke {
-                self.fullscreen_activity = Instant::now();
-            }
         }
         if self.settings.winamp_window {
             crate::ui::winamp::show(self, ui);
