@@ -136,10 +136,9 @@ AUR and Homebrew packages now use the Spotifast name. See [rename compatibility]
   another Spotify client.
   Large playlist checkpoints read and write their JSON through a small background
   buffer, preserving the existing cache format without another full JSON copy.
-- **Lyrics.** Follow synced lyrics in a side panel or full-screen view, or read
-  unsynced lyrics when timestamps are unavailable. Full-screen lyrics scroll
-  smoothly and highlight the playing line automatically.
-  unsynced lyrics when timestamps are unavailable.
+- **Lyrics.** Follow synced lyrics in a side panel or full-screen player, or
+  read unsynced lyrics when timestamps are unavailable. Full-screen lyrics
+  scroll smoothly and highlight the playing line automatically.
 - **Full-screen player.** On `main`, after 0.8.0, `F11` fills the window with
   the playing cover, its title, and its artist over a blurred backdrop, in
   the light or dark theme you use. Playback controls appear when the pointer

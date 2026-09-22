@@ -40,7 +40,7 @@ data and needs no Spotify account:
 Current `main` also translates the player bar's empty state, tooltips and
 screen-reader labels for playback, repeat, shuffle, Like, volume, device
 selection, Queue and Lyrics controls. The Queue page and panel, Recent tab,
-Lyrics panel and full-screen view, and shared loading/retry labels are also
+Lyrics panel and full-screen player, and shared loading/retry labels are also
 translated on `main`. These additions are not in 0.8.0. They keep the existing
 controls and keyboard actions. Other menus, pages and settings still need coverage.
 
