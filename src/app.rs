@@ -8613,6 +8613,14 @@ impl App {
             } else if self.player_fullscreen_seen {
                 self.leave_player_fullscreen(ctx);
             }
+        } else if self.player_fullscreen_restoring.is_none()
+            && ctx.input(|input| input.viewport().fullscreen == Some(true))
+        {
+            // The window state remembers a native fullscreen from the last
+            // session. Restored bare, it leaves no way out: the window
+            // controls hide whenever the viewport is fullscreen, and the
+            // full-screen player is the only thing that may put it back.
+            ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(false));
         }
         // Switch to the main window when sign-in is required.
         let needs_sign_in = !(self.is_connected() && self.user.is_some())
@@ -14508,6 +14516,35 @@ mod tests {
         });
         output.textures_delta.clear();
         assert!(app.settings_dirty);
+        app.backend.shutdown();
+    }
+
+    #[test]
+    fn a_bare_native_fullscreen_restored_at_launch_is_stood_down() {
+        let mut app = headless_app();
+        let ctx = egui::Context::default();
+        crate::theme::install(&ctx);
+        let mut input = egui::RawInput::default();
+        input
+            .viewports
+            .get_mut(&egui::ViewportId::ROOT)
+            .unwrap()
+            .fullscreen = Some(true);
+        let mut output = ctx.run_ui(input, |ui| app.frame_ui(ui));
+        output.textures_delta.clear();
+        assert_eq!(app.player_fullscreen, None);
+        let commands: Vec<_> = output.viewport_output[&egui::ViewportId::ROOT]
+            .commands
+            .iter()
+            .filter_map(|command| {
+                if let egui::ViewportCommand::Fullscreen(value) = command {
+                    Some(*value)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        assert_eq!(commands, vec![false]);
         app.backend.shutdown();
     }
 
