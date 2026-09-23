@@ -855,11 +855,13 @@ impl App {
         }
         // The session's geometry describes an ordinary window; applying it to
         // one eframe restored maximized or full screen would restore it down.
+        // It stays put when skipped: a full screen restored by eframe is
+        // stood down on the first frame, and the geometry comes back with it.
         let filling_the_screen =
             ctx.input(|input| crate::window::fills_the_screen(input.viewport()));
-        if let Some(size) = self.session_window_size.take()
-            && !filling_the_screen
+        if !filling_the_screen
             && !self.offline
+            && let Some(size) = self.session_window_size.take()
         {
             // Clamp to a sane range so a stale session never creates an
             // unusable window; the OS will further clamp to the monitor.
@@ -870,9 +872,9 @@ impl App {
             }
         }
         // If the saved position is off-screen, leave the window where eframe put it.
-        if let Some(pos) = self.session_window_pos.take()
-            && !filling_the_screen
+        if !filling_the_screen
             && !self.offline
+            && let Some(pos) = self.session_window_pos.take()
             && crate::window::can_restore(pos, ctx.pixels_per_point())
         {
             ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(
@@ -8621,6 +8623,23 @@ impl App {
             // controls hide whenever the viewport is fullscreen, and the
             // full-screen player is the only thing that may put it back.
             ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(false));
+            // eframe restored the full-screen size along with the flag, so
+            // the session geometry attach skipped comes back with it.
+            if let Some(size) = self.session_window_size.take()
+                && (400.0..=3000.0).contains(&size[0])
+                && (300.0..=2000.0).contains(&size[1])
+            {
+                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(
+                    size[0], size[1],
+                )));
+            }
+            if let Some(pos) = self.session_window_pos.take()
+                && crate::window::can_restore(pos, ctx.pixels_per_point())
+            {
+                ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(
+                    pos[0], pos[1],
+                )));
+            }
         }
         // Switch to the main window when sign-in is required.
         let needs_sign_in = !(self.is_connected() && self.user.is_some())
@@ -14522,6 +14541,8 @@ mod tests {
     #[test]
     fn a_bare_native_fullscreen_restored_at_launch_is_stood_down() {
         let mut app = headless_app();
+        app.session_window_size = Some([1240.0, 800.0]);
+        app.session_window_pos = Some([52.0, 52.0]);
         let ctx = egui::Context::default();
         crate::theme::install(&ctx);
         let mut input = egui::RawInput::default();
@@ -14533,18 +14554,16 @@ mod tests {
         let mut output = ctx.run_ui(input, |ui| app.frame_ui(ui));
         output.textures_delta.clear();
         assert_eq!(app.player_fullscreen, None);
-        let commands: Vec<_> = output.viewport_output[&egui::ViewportId::ROOT]
-            .commands
-            .iter()
-            .filter_map(|command| {
-                if let egui::ViewportCommand::Fullscreen(value) = command {
-                    Some(*value)
-                } else {
-                    None
-                }
-            })
-            .collect();
-        assert_eq!(commands, vec![false]);
+        let commands = &output.viewport_output[&egui::ViewportId::ROOT].commands;
+        assert!(commands.contains(&egui::ViewportCommand::Fullscreen(false)));
+        // The full-screen size eframe restored goes back to the session's
+        // ordinary window geometry.
+        assert!(commands.contains(&egui::ViewportCommand::InnerSize(egui::vec2(1240.0, 800.0))));
+        assert!(
+            commands.contains(&egui::ViewportCommand::OuterPosition(egui::pos2(
+                52.0, 52.0
+            )))
+        );
         app.backend.shutdown();
     }
 
